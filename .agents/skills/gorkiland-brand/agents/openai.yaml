@@ -1,0 +1,4 @@
+interface:
+  display_name: "GorkiLand Brand"
+  short_description: "Apply verified GorkiLand brand rules to frontend work"
+  default_prompt: "Use $gorkiland-brand for a branded GorkiLand website change."

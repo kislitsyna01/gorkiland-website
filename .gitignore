@@ -1,0 +1,18 @@
+node_modules/
+.pnpm-store/
+dist/
+.vite/
+*.tsbuildinfo
+tmp/
+.env
+.env.*
+!.env.example
+
+# Original reference materials stay local; the deployable site uses public/assets/.
+/01_BRANDBOOK/
+/02_DESIGN/
+/03_LOGOS/
+/04_IMAGES/
+/05_VIDEO/
+/06_CONTENT/
+/07_CONCEPT/

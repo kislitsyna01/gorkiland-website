@@ -1,0 +1,4 @@
+interface:
+  display_name: "GorkiLand Motion"
+  short_description: "Build responsive GSAP motion for GorkiLand"
+  default_prompt: "Use $gorkiland-motion to animate the GorkiLand website."

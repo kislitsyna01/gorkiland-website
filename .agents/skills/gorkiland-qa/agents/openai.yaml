@@ -1,0 +1,4 @@
+interface:
+  display_name: "GorkiLand QA"
+  short_description: "Review responsive layout, performance, SEO, and errors"
+  default_prompt: "Use $gorkiland-qa to review the GorkiLand website."
