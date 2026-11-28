@@ -174,12 +174,58 @@ function Geography() {
       if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomMap(0.8); }
       if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomMap(1.25); }
       if (event.key === '0') { event.preventDefault(); setActivePointId(null); resetMap(); }
+      if (event.target === map && event.key.startsWith('Arrow')) {
+        event.preventDefault();
+        const box = map.viewBox.baseVal;
+        const step = box.width * 0.08;
+        const x = box.x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0);
+        const y = box.y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0);
+        const padX = box.width >= 999 ? 90 : 0;
+        const padY = box.height >= 519 ? 46 : 0;
+        gsap.killTweensOf(map);
+        map.setAttribute('viewBox', `${Math.max(-padX, Math.min(1000 - box.width + padX, x))} ${Math.max(-padY, Math.min(520 - box.height + padY, y))} ${box.width} ${box.height}`);
+      }
+    };
+    let drag: { pointerId: number; startX: number; startY: number; x: number; y: number; width: number; height: number } | null = null;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !(event.target instanceof Element) || event.target.closest('.map-pin, .map-balloon-close')) return;
+      const box = map.viewBox.baseVal;
+      if (!Number.isFinite(box.width) || !Number.isFinite(box.height) || box.width <= 0 || box.height <= 0) { resetMap(); return; }
+      drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: box.x, y: box.y, width: box.width, height: box.height };
+      gsap.killTweensOf(map);
+      map.setPointerCapture(event.pointerId);
+      map.classList.add('is-panning');
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const rect = map.getBoundingClientRect();
+      const scale = Math.min(rect.width / drag.width, rect.height / drag.height);
+      if (!Number.isFinite(scale) || scale <= 0 || drag.width <= 0 || drag.height <= 0) return;
+      const x = drag.x - (event.clientX - drag.startX) / scale;
+      const y = drag.y - (event.clientY - drag.startY) / scale;
+      const padX = drag.width >= 999 ? 90 : 0;
+      const padY = drag.height >= 519 ? 46 : 0;
+      map.setAttribute('viewBox', `${Math.max(-padX, Math.min(1000 - drag.width + padX, x))} ${Math.max(-padY, Math.min(520 - drag.height + padY, y))} ${drag.width} ${drag.height}`);
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      drag = null;
+      map.classList.remove('is-panning');
+      if (map.hasPointerCapture(event.pointerId)) map.releasePointerCapture(event.pointerId);
     };
     map.addEventListener('wheel', onWheel, { passive: false });
     map.addEventListener('keydown', onKeyDown);
+    map.addEventListener('pointerdown', onPointerDown);
+    map.addEventListener('pointermove', onPointerMove);
+    map.addEventListener('pointerup', onPointerUp);
+    map.addEventListener('pointercancel', onPointerUp);
     return () => {
       map.removeEventListener('wheel', onWheel);
       map.removeEventListener('keydown', onKeyDown);
+      map.removeEventListener('pointerdown', onPointerDown);
+      map.removeEventListener('pointermove', onPointerMove);
+      map.removeEventListener('pointerup', onPointerUp);
+      map.removeEventListener('pointercancel', onPointerUp);
     };
   }, [resetMap, zoomMap]);
   const changeFilter = (nextFilter: string) => {
