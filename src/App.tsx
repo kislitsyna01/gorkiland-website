@@ -5,6 +5,7 @@ import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 import world from 'world-atlas/countries-110m.json';
 import type { Feature, Geometry } from 'geojson';
+import { projectMapPoints } from './data/projectMapPoints';
 import './App.css';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -33,12 +34,12 @@ const news = [
 ];
 
 const projects = [
-  { city: 'Владивосток', park: 'Минный городок', detail: 'Колесо обозрения · 55 м · открыто в 2026', coords: [131.8855, 43.1155] },
-  { city: 'Москва', park: 'Орион · ВДНХ', detail: 'Гигантские качели 360° · Цепочная карусель', coords: [37.64, 55.83] },
-  { city: 'Химки', park: 'Сказочный бор', detail: 'Семейный аттракцион «Колобок»', coords: [37.43, 55.89] },
-  { city: 'Москва', park: 'Парк «Сказка»', detail: 'Колесо обозрения · 50 м', coords: [37.41, 55.69] },
-  { city: 'Киров', park: 'Новый проект', detail: 'Гигантские качели 360° · готов к установке', coords: [49.66, 58.60] },
-  { city: 'Губаха', park: 'Кластер Губаха', detail: 'Обзорная башня · проект', coords: [57.55, 58.84] },
+  { city: 'Владивосток', park: 'Минный городок', detail: 'Колесо обозрения · 55 м · открыто в 2026', coords: [131.8855, 43.1155], image: 'колесо-обозрения.jpg' },
+  { city: 'Москва', park: 'Орион · ВДНХ', detail: 'Гигантские качели 360° · Цепочная карусель', coords: [37.64, 55.83], image: 'цепочная-карусель.jpg' },
+  { city: 'Химки', park: 'Сказочный бор', detail: 'Семейный аттракцион «Колобок»', coords: [37.43, 55.89], image: 'project-kolobok.jpg' },
+  { city: 'Москва', park: 'Парк «Сказка»', detail: 'Колесо обозрения · 50 м', coords: [37.41, 55.69], image: 'колесо-обозрения.jpg' },
+  { city: 'Киров', park: 'Новый проект', detail: 'Гигантские качели 360° · готов к установке', coords: [49.66, 58.60], image: 'качели-с-переворотом-360.jpg' },
+  { city: 'Губаха', park: 'Кластер Губаха', detail: 'Обзорная башня · проект', coords: [57.55, 58.84], image: 'обзорная-башня.jpg' },
 ];
 
 const partners = ['ParkSeason Expo', 'Парк «Орион», ВДНХ', 'Парк «Сказочный бор»', 'Парк «Минный городок»', 'РАППА', 'САПИР', 'Парки Ижевска', 'Парк «Сказка»', 'Парк Горького', 'Сити Молл', 'Парковая инфраструктура', '«Седьмое небо»'];
@@ -96,7 +97,9 @@ function News() { return <section className="section news-section" id="news"><di
 type Topology = { objects: { countries: { type: string; geometries: unknown[] } } };
 function Geography() {
   const [selected, setSelected] = useState(0);
+  const [activePointId, setActivePointId] = useState<number | null>(null);
   const [filter, setFilter] = useState('Все проекты');
+  const mapRef = useRef<SVGSVGElement>(null);
   const russia = useMemo(() => {
     const topo = world as unknown as Topology;
     const collection = feature(topo as never, topo.objects.countries as never) as unknown as { features: Feature<Geometry>[] };
@@ -105,7 +108,38 @@ function Geography() {
   const projection = useMemo(() => geoMercator().center([93, 61]).scale(162).translate([490, 300]), []);
   const path = useMemo(() => geoPath(projection), [projection]);
   const filtered = filter === 'Все проекты' ? projects : projects.filter(p => p.detail.toLowerCase().includes(filter.toLowerCase()));
-  return <section className="section geography-section" id="geography"><div className="section-wrap"><SectionHeading title="География проектов" description={<>Проекты ГоркиLand<br/>в городах России</>}/><div className="geo-layout"><div className="map-panel"><div className="map-controls"><span>Карта проектов</span><select aria-label="Фильтр проектов" value={filter} onChange={e => setFilter(e.target.value)}><option>Все проекты</option><option>открыто</option><option>установке</option></select></div><svg className="russia-map" viewBox="0 0 1000 520" role="group" aria-label="Интерактивная карта России"><defs><pattern id="mapdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#d4d4d4"/></pattern></defs>{russia && <path d={path(russia) || ''} fill="url(#mapdots)" stroke="#b8b8b8" strokeWidth="1.4" aria-hidden="true"/>}{filtered.map(p => { const xy = projection(p.coords as [number, number]); if (!xy) return null; const originalIndex = projects.indexOf(p); return <g key={p.park} className={`map-pin ${selected === originalIndex ? 'active' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => setSelected(originalIndex)} role="button" tabIndex={0} aria-pressed={selected === originalIndex} aria-label={`${p.city}: ${p.park}`} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelected(originalIndex); }}><circle className="pin-halo" r="14"/><circle className="pin-dot" r="5"/></g>; })}</svg><div className="map-caption"><span><i/> Проекты ГоркиLand</span><span>Показаны отдельные объекты из публикаций компании</span></div></div><div className="project-list"><div className="project-list-top"><span>Города и проекты</span><span>0{filtered.length}</span></div>{filtered.map(p => { const idx = projects.indexOf(p); return <button key={p.park} onClick={() => setSelected(idx)} className={`project-row ${idx === selected ? 'active' : ''}`} aria-pressed={idx === selected}><span className="project-city">{p.city}</span><span className="project-place">{p.park}<small>{p.detail}</small></span><Icon name="arrow"/></button>; })}<a className="text-link" href="https://gorkiland.ru/novosti" target="_blank" rel="noreferrer">Подробнее о проектах <Icon name="arrow"/></a></div></div></div></section>;
+  const projectPointIds = [71, 70, 72, 47, 73, 3];
+  const activePoint = projectMapPoints.find(point => point.id === activePointId);
+  const selectProject = (index: number) => { setSelected(index); setActivePointId(projectPointIds[index]); };
+  const selectMapPoint = (pointId: number) => {
+    setActivePointId(pointId);
+    const projectIndex = projectPointIds.indexOf(pointId);
+    setSelected(projectIndex);
+  };
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (activePointId === null) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) map.setAttribute('viewBox', '0 0 1000 520');
+      else gsap.to(map, { attr: { viewBox: '0 0 1000 520' }, duration: 0.72, ease: 'power2.inOut', overwrite: true });
+      return;
+    }
+    const point = projectMapPoints.find(item => item.id === activePointId);
+    const xy = point && projection(point.coords);
+    if (!xy) return;
+    const viewBox = `${xy[0] - 260} ${xy[1] - 140} 520 280`;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      map.setAttribute('viewBox', viewBox);
+      return;
+    }
+    gsap.to(map, { attr: { viewBox }, duration: 0.72, ease: 'power2.inOut', overwrite: true });
+  }, [activePointId, projection]);
+  const changeFilter = (nextFilter: string) => {
+    setFilter(nextFilter);
+    const nextProjects = nextFilter === 'Все проекты' ? projects : projects.filter(p => p.detail.toLowerCase().includes(nextFilter.toLowerCase()));
+    if (!nextProjects.some(p => projects.indexOf(p) === selected) && nextProjects[0]) selectProject(projects.indexOf(nextProjects[0]));
+  };
+  return <section className="section geography-section" id="geography"><div className="section-wrap"><SectionHeading title="География проектов" description={<>Проекты ГоркиLand<br/>в городах России</>}/><div className="geo-layout"><div className="map-panel"><div className="map-controls"><span>Карта проектов</span><select aria-label="Фильтр проектов" value={filter} onChange={e => changeFilter(e.target.value)}><option>Все проекты</option><option>открыто</option><option>установке</option></select></div><svg ref={mapRef} className="russia-map" viewBox="0 0 1000 520" role="group" aria-label="Интерактивная карта России"><defs><pattern id="mapdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#d4d4d4"/></pattern></defs>{russia && <path d={path(russia) || ''} fill="url(#mapdots)" stroke="#b8b8b8" strokeWidth="1.4" aria-hidden="true"/>}{projectMapPoints.map(point => { const xy = projection(point.coords); if (!xy) return null; const projectIndex = projectPointIds.indexOf(point.id); const isActive = activePointId === point.id; return <g key={point.id} className={`map-pin ${isActive ? 'active' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => selectMapPoint(point.id)} role="button" tabIndex={0} aria-pressed={isActive} aria-label={point.description.replace(' | ', ', ')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMapPoint(point.id); } }}><circle className="pin-halo" r={projectIndex >= 0 ? 14 : 8}/><circle className="pin-dot" r={projectIndex >= 0 ? 5 : 3}/></g>; })}{activePoint && (() => { const xy = projection(activePoint.coords); if (!xy) return null; const [title, address = ''] = activePoint.description.split(' | '); return <g className="map-balloon" aria-label={`${title}. ${address}`}><foreignObject x={xy[0] - 240} y={xy[1] - 135} width="480" height="84"><div className="map-balloon-card"><span>{title}</span>{address && <span>{address}</span>}</div></foreignObject><g className="map-balloon-close" role="button" tabIndex={0} aria-label="Закрыть адрес" onClick={() => setActivePointId(null)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActivePointId(null); } }} transform={`translate(${xy[0] + 220},${xy[1] - 116})`}><circle r="13"/><path d="m-5 -5 10 10m0-10-10 10"/></g></g>; })()}</svg><div className="map-caption"><span><i/> Проекты ГоркиLand</span><span>Выберите точку или проект, чтобы узнать адрес</span></div></div><div className="project-list"><div className="project-list-top"><span>Города и проекты</span><span>{String(filtered.length).padStart(2, '0')}</span></div>{filtered.map(p => { const idx = projects.indexOf(p); return <button key={p.park} onClick={() => selectProject(idx)} className={`project-row ${idx === selected ? 'active' : ''}`} aria-pressed={idx === selected}><span className="project-city">{p.city}</span><span className="project-place">{p.park}<small>{p.detail}</small></span><Icon name="arrow"/>{idx === selected && <span className="project-photo"><img src={img(p.image)} alt={`Аттракцион проекта ${p.park}`} loading="lazy"/></span>}</button>; })}<a className="text-link" href="https://gorkiland.ru/novosti" target="_blank" rel="noreferrer">Подробнее о проектах <Icon name="arrow"/></a></div></div></div></section>;
 }
 
 function Production() { return <section className="production-section" id="production"><div className="production-image"><img src={img('laser-cutting.jpg')} alt="Лазерная резка металлической детали на производстве ГоркиLand" loading="lazy"/></div><div className="production-overlay"/><div className="production-content"><h2>Каждая деталь<br/>работает на<br/>впечатление</h2><p>Покажем, как идея проходит путь<br/>до готовой конструкции.</p><a className="button button-orange" href="#contacts">Записаться на экскурсию <Icon name="arrow"/></a></div></section>; }
