@@ -325,5 +325,4 @@
 
 @media(min-width:761px){.brand-statement{min-height:62svh}}
 
-@media(min-width:1301px){.hero-image{background-position:center top;background-size:auto 150%}}
-@media(min-width:761px) and (max-width:1300px){.hero-image{background-position:center top;background-size:auto 140%}}
+@media(min-width:761px){.hero-image{background-position:center bottom;background-size:cover}}
