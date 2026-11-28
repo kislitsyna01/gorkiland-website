@@ -322,3 +322,5 @@
 .site-footer .footer-logo img{width:min(324px,80vw);transform:translate(-13.3%,12px)}
 
 @media(min-width:761px){.site-footer>span,.site-footer>div{align-self:flex-end;margin-bottom:20px}}
+
+@media(min-width:761px){.brand-statement{min-height:62svh}}
