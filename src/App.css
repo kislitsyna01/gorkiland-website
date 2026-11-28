@@ -312,3 +312,5 @@
 @media(max-width:760px){.about-and-break{display:block}}
 
 .news-section .section-heading h2{font-size:clamp(40px,5vw,74px);letter-spacing:.015em}
+
+.geography-section .section-heading h2{font-size:clamp(40px,5vw,74px);letter-spacing:.015em}
