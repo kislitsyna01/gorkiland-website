@@ -232,6 +232,8 @@
 .production-overlay{background:linear-gradient(90deg,rgba(18,18,18,.54) 0%,rgba(18,18,18,.44) 55%,rgba(18,18,18,.38) 100%)}
 .production-content{width:auto;max-width:none;margin:0;padding-top:min(14.2vh,9vw)}
 .production-content h2{max-width:760px;font-size:clamp(56px,5vw,92px);line-height:.91;letter-spacing:-.065em}
+/* Keep the hero headline more open than the tightly tracked display headings. */
+.hero .hero-title-line{letter-spacing:-.02em}
 .production-content>p{max-width:520px;margin:34px 0 30px;color:#fff;font-size:clamp(16px,1.55vw,25px);line-height:1.35}
 .production-content .button{min-height:50px;padding-inline:24px;gap:16px;font-size:14px}
 @media(max-width:760px){
