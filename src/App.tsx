@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { geoMercator, geoPath } from 'd3-geo';
@@ -100,6 +100,36 @@ function Geography() {
   const [activePointId, setActivePointId] = useState<number | null>(null);
   const [filter, setFilter] = useState('Все проекты');
   const mapRef = useRef<SVGSVGElement>(null);
+  const zoomMap = useCallback((factor: number, clientX?: number, clientY?: number) => {
+    const map = mapRef.current;
+    const screenMatrix = map?.getScreenCTM();
+    if (!map || !screenMatrix) return false;
+    const box = map.viewBox.baseVal;
+    const rect = map.getBoundingClientRect();
+    const screenPoint = map.createSVGPoint();
+    screenPoint.x = clientX ?? rect.left + rect.width / 2;
+    screenPoint.y = clientY ?? rect.top + rect.height / 2;
+    const focus = screenPoint.matrixTransform(screenMatrix.inverse());
+    const width = Math.max(180, Math.min(1000, box.width * factor));
+    if (Math.abs(width - box.width) < 0.5) return false;
+    const height = box.height * width / box.width;
+    const ratioX = Math.max(0, Math.min(1, (focus.x - box.x) / box.width));
+    const ratioY = Math.max(0, Math.min(1, (focus.y - box.y) / box.height));
+    const x = Math.max(0, Math.min(1000 - width, focus.x - ratioX * width));
+    const y = Math.max(0, Math.min(520 - height, focus.y - ratioY * height));
+    const viewBox = `${x} ${y} ${width} ${height}`;
+    gsap.killTweensOf(map);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) map.setAttribute('viewBox', viewBox);
+    else gsap.to(map, { attr: { viewBox }, duration: 0.22, ease: 'power2.out', overwrite: true });
+    return true;
+  }, []);
+  const resetMap = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    gsap.killTweensOf(map);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) map.setAttribute('viewBox', '0 0 1000 520');
+    else gsap.to(map, { attr: { viewBox: '0 0 1000 520' }, duration: 0.38, ease: 'power2.out', overwrite: true });
+  }, []);
   const russia = useMemo(() => {
     const topo = world as unknown as Topology;
     const collection = feature(topo as never, topo.objects.countries as never) as unknown as { features: Feature<Geometry>[] };
@@ -120,8 +150,7 @@ function Geography() {
     const map = mapRef.current;
     if (!map) return;
     if (activePointId === null) {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) map.setAttribute('viewBox', '0 0 1000 520');
-      else gsap.to(map, { attr: { viewBox: '0 0 1000 520' }, duration: 0.72, ease: 'power2.inOut', overwrite: true });
+      resetMap();
       return;
     }
     const point = projectMapPoints.find(item => item.id === activePointId);
@@ -133,13 +162,32 @@ function Geography() {
       return;
     }
     gsap.to(map, { attr: { viewBox }, duration: 0.72, ease: 'power2.inOut', overwrite: true });
-  }, [activePointId, projection]);
+  }, [activePointId, projection, resetMap]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const onWheel = (event: WheelEvent) => {
+      const changed = zoomMap(event.deltaY < 0 ? 0.86 : 1.16, event.clientX, event.clientY);
+      if (changed) event.preventDefault();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomMap(0.8); }
+      if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomMap(1.25); }
+      if (event.key === '0') { event.preventDefault(); setActivePointId(null); resetMap(); }
+    };
+    map.addEventListener('wheel', onWheel, { passive: false });
+    map.addEventListener('keydown', onKeyDown);
+    return () => {
+      map.removeEventListener('wheel', onWheel);
+      map.removeEventListener('keydown', onKeyDown);
+    };
+  }, [resetMap, zoomMap]);
   const changeFilter = (nextFilter: string) => {
     setFilter(nextFilter);
     const nextProjects = nextFilter === 'Все проекты' ? projects : projects.filter(p => p.detail.toLowerCase().includes(nextFilter.toLowerCase()));
     if (!nextProjects.some(p => projects.indexOf(p) === selected) && nextProjects[0]) selectProject(projects.indexOf(nextProjects[0]));
   };
-  return <section className="section geography-section" id="geography"><div className="section-wrap"><SectionHeading title="География проектов" description={<>Проекты ГоркиLand<br/>в городах России</>}/><div className="geo-layout"><div className="map-panel"><div className="map-controls"><span>Карта проектов</span><select aria-label="Фильтр проектов" value={filter} onChange={e => changeFilter(e.target.value)}><option>Все проекты</option><option>открыто</option><option>установке</option></select></div><svg ref={mapRef} className="russia-map" viewBox="0 0 1000 520" role="group" aria-label="Интерактивная карта России"><defs><pattern id="mapdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#d4d4d4"/></pattern></defs>{russia && <path d={path(russia) || ''} fill="url(#mapdots)" stroke="#b8b8b8" strokeWidth="1.4" aria-hidden="true"/>}{projectMapPoints.map(point => { const xy = projection(point.coords); if (!xy) return null; const projectIndex = projectPointIds.indexOf(point.id); const isActive = activePointId === point.id; return <g key={point.id} className={`map-pin ${isActive ? 'active' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => selectMapPoint(point.id)} role="button" tabIndex={0} aria-pressed={isActive} aria-label={point.description.replace(' | ', ', ')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMapPoint(point.id); } }}><circle className="pin-halo" r={projectIndex >= 0 ? 14 : 8}/><circle className="pin-dot" r={projectIndex >= 0 ? 5 : 3}/></g>; })}{activePoint && (() => { const xy = projection(activePoint.coords); if (!xy) return null; const [title, address = ''] = activePoint.description.split(' | '); return <g className="map-balloon" aria-label={`${title}. ${address}`}><foreignObject x={xy[0] - 240} y={xy[1] - 135} width="480" height="84"><div className="map-balloon-card"><span>{title}</span>{address && <span>{address}</span>}</div></foreignObject><g className="map-balloon-close" role="button" tabIndex={0} aria-label="Закрыть адрес" onClick={() => setActivePointId(null)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActivePointId(null); } }} transform={`translate(${xy[0] + 220},${xy[1] - 116})`}><circle r="13"/><path d="m-5 -5 10 10m0-10-10 10"/></g></g>; })()}</svg><div className="map-caption"><span><i/> Проекты ГоркиLand</span><span>Выберите точку или проект, чтобы узнать адрес</span></div></div><div className="project-list"><div className="project-list-top"><span>Города и проекты</span><span>{String(filtered.length).padStart(2, '0')}</span></div>{filtered.map(p => { const idx = projects.indexOf(p); return <button key={p.park} onClick={() => selectProject(idx)} className={`project-row ${idx === selected ? 'active' : ''}`} aria-pressed={idx === selected}><span className="project-city">{p.city}</span><span className="project-place">{p.park}<small>{p.detail}</small></span><Icon name="arrow"/>{idx === selected && <span className="project-photo"><img src={img(p.image)} alt={`Аттракцион проекта ${p.park}`} loading="lazy"/></span>}</button>; })}<a className="text-link" href="https://gorkiland.ru/novosti" target="_blank" rel="noreferrer">Подробнее о проектах <Icon name="arrow"/></a></div></div></div></section>;
+  return <section className="section geography-section" id="geography"><div className="section-wrap"><SectionHeading title="География проектов" description={<>Проекты ГоркиLand<br/>в городах России</>}/><div className="geo-layout"><div className="map-panel"><div className="map-controls"><span>Карта проектов</span><div className="map-actions"><select aria-label="Фильтр проектов" value={filter} onChange={e => changeFilter(e.target.value)}><option>Все проекты</option><option>открыто</option><option>установке</option></select><button type="button" aria-label="Приблизить карту" onClick={() => zoomMap(0.8)}>+</button><button type="button" aria-label="Отдалить карту" onClick={() => zoomMap(1.25)}>−</button><button type="button" aria-label="Сбросить масштаб карты" onClick={() => { setActivePointId(null); resetMap(); }}>Сброс</button></div></div><svg ref={mapRef} className="russia-map" viewBox="0 0 1000 520" role="group" tabIndex={0} aria-label="Интерактивная карта России. Колёсико мыши приближает карту к курсору; клавиши плюс и минус меняют масштаб, ноль сбрасывает." aria-describedby="map-help"><defs><pattern id="mapdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#d4d4d4"/></pattern></defs>{russia && <path d={path(russia) || ''} fill="url(#mapdots)" stroke="#b8b8b8" strokeWidth="1.4" aria-hidden="true"/>}{projectMapPoints.map(point => { const xy = projection(point.coords); if (!xy) return null; const projectIndex = projectPointIds.indexOf(point.id); const isActive = activePointId === point.id; return <g key={point.id} className={`map-pin ${isActive ? 'active' : ''}`} transform={`translate(${xy[0]},${xy[1]})`} onClick={() => selectMapPoint(point.id)} role="button" tabIndex={0} aria-pressed={isActive} aria-label={point.description.replace(' | ', ', ')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMapPoint(point.id); } }}><circle className="pin-halo" r={projectIndex >= 0 ? 14 : 8}/><circle className="pin-dot" r={projectIndex >= 0 ? 5 : 3}/></g>; })}{activePoint && (() => { const xy = projection(activePoint.coords); if (!xy) return null; const [title, address = ''] = activePoint.description.split(' | '); return <g className="map-balloon" aria-label={`${title}. ${address}`}><foreignObject x={xy[0] - 240} y={xy[1] - 135} width="480" height="84"><div className="map-balloon-card"><span>{title}</span>{address && <span>{address}</span>}</div></foreignObject><g className="map-balloon-close" role="button" tabIndex={0} aria-label="Закрыть адрес" onClick={() => setActivePointId(null)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActivePointId(null); } }} transform={`translate(${xy[0] + 220},${xy[1] - 116})`}><circle r="13"/><path d="m-5 -5 10 10m0-10-10 10"/></g></g>; })()}</svg><span id="map-help" className="sr-only">Для масштабирования используйте колесо мыши, кнопки плюс и минус или клавиши плюс и минус.</span><div className="map-caption"><span><i/> Проекты ГоркиLand</span><span>Колёсико мыши приближает область под курсором</span></div></div><div className="project-list"><div className="project-list-top"><span>Города и проекты</span><span>{String(filtered.length).padStart(2, '0')}</span></div>{filtered.map(p => { const idx = projects.indexOf(p); return <button key={p.park} onClick={() => selectProject(idx)} className={`project-row ${idx === selected ? 'active' : ''}`} aria-pressed={idx === selected}><span className="project-city">{p.city}</span><span className="project-place">{p.park}<small>{p.detail}</small></span><Icon name="arrow"/>{idx === selected && <span className="project-photo"><img src={img(p.image)} alt={`Аттракцион проекта ${p.park}`} loading="lazy"/></span>}</button>; })}<a className="text-link" href="https://gorkiland.ru/novosti" target="_blank" rel="noreferrer">Подробнее о проектах <Icon name="arrow"/></a></div></div></div></section>;
 }
 
 function Production() { return <section className="production-section" id="production"><div className="production-image"><img src={img('laser-cutting.jpg')} alt="Лазерная резка металлической детали на производстве ГоркиLand" loading="lazy"/></div><div className="production-overlay"/><div className="production-content"><h2>Каждая деталь<br/>работает на<br/>впечатление</h2><p>Покажем, как идея проходит путь<br/>до готовой конструкции.</p><a className="button button-orange" href="#contacts">Записаться на экскурсию <Icon name="arrow"/></a></div></section>; }
