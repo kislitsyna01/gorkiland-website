@@ -319,4 +319,4 @@
 
 .contacts-top h2{font-size:clamp(40px,7vw,74px);letter-spacing:.015em}
 
-.site-footer .footer-logo img{width:min(324px,80vw)}
+.site-footer .footer-logo img{width:min(324px,80vw);transform:translate(-13.3%,12px)}
